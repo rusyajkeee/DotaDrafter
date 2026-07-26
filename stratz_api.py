@@ -35,7 +35,38 @@ def execute_query(query: str) -> dict:
     
     return data["data"]
 
+
+def get_position_stats(position_id: str):
+    query = f"""
+query myQuery {{
+  heroStats {{
+    stats(positionIds: {position_id}) {{
+      heroId
+      matchCount
+    }}
+  }}
+}}
+"""
+
+    return execute_query(query)["heroStats"]["stats"]
+
+def get_all_positions_stats():
+    position_stats = {}
+
+    for position in constants.POSITIONS:
+        heroes = get_position_stats(position)
+
+        for hero in heroes:
+            hero_id = hero["heroId"]
+            position_stats.setdefault(hero_id, {})
+            position_stats[hero_id][position] = {
+                "matchCount" : hero["matchCount"]
+            }
+
+    return position_stats
+
 def get_matchups(hero_id: int):
+
     query = f"""
 query MyQuery {{
   heroStats {{
@@ -50,6 +81,3 @@ query MyQuery {{
 }}
 """
     return execute_query(query)["heroStats"]["matchUp"][0]["vs"]
-
-
-#print(sort_by_winrate(add_hero_names(add_winrates(get_matchups(1)), HEROES)))

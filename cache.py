@@ -12,13 +12,33 @@ CACHE_FILE = CACHE_DIR / "cache.json"
 
 def load_cache():
     if CACHE_FILE.is_file():
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(CACHE_FILE, "r") as f:
             cache = json.load(f)
-        created_at = datetime.fromisoformat(cache["created_at"])
-        if created_at < (datetime.now() - timedelta(days=1)):
-            return build_cache(version=cache["version"]+1)
+
+        if datetime.fromisoformat(cache["created_at"]) < (datetime.now() - timedelta(hours=24)):
+            return build_cache(version=cache["version"] + 1)
+
+        cache = normalize_cache(cache)
+        
         return cache
+
     return build_cache()
+
+def normalize_cache(cache: dict) -> dict:
+    cache["heroes"] = {
+        int(hero_id): {
+            **hero_data,
+            "coefficients": {
+                int(counter_id): coefficient
+                for counter_id, coefficient in hero_data["coefficients"].items()
+            }
+        }
+        for hero_id, hero_data in cache["heroes"].items()
+    }
+
+
+    
+    return cache
 
 
 def save_cache(cache):
@@ -29,16 +49,17 @@ def save_cache(cache):
 def build_one_hero(hero_id):
     matchups = stratz_api.get_matchups(hero_id)
     matchups = matchup_utils.add_winrates(matchups)
-    matchups = matchup_utils.add_hero_names(matchups, HEROES)
     matchups = matchup_utils.sort_by_winrate(matchups)
-    return hero_id, matchups
+    coefficients = matchup_utils.build_coefficients(matchups)
+    return hero_id, coefficients
 
 
 
 def build_cache(version: int = 1):
 
     cache = {"version": version, "created_at": datetime.now().isoformat(), "heroes": {}}
-    
+    positions = stratz_api.get_all_positions_stats()
+    positions = matchup_utils.normalise_positions(positions)
 
     with ThreadPoolExecutor(max_workers=10) as executor:
 
@@ -51,10 +72,14 @@ def build_cache(version: int = 1):
             hero_id = futures[future]
             try:
                 hero_id, matchups =future.result()
+                    
             except Exception as e:
                 print(f"Error processing hero {HEROES[hero_id]}: {e}")
             else:
-                cache["heroes"][hero_id] = matchups
+                cache["heroes"][str(hero_id)] = {
+                "coefficients": matchups,
+                "positions": positions[hero_id]
+                }
                 completed += 1
 
                 print(f"[{completed}/{len(HEROES)}] {HEROES[hero_id]} processed successfully.")
@@ -66,6 +91,6 @@ import time
 
 start = time.perf_counter()
 
-cache = build_cache()
+cache = load_cache()
 
 print(f"Finished in {time.perf_counter() - start:.2f} seconds.")

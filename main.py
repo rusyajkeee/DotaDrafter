@@ -1,7 +1,9 @@
-import datetime
+import cache
+import constants
+import stratz_api
+import matchup_utils
+import recommender
 
-now = datetime.datetime.now()
-print(now.isoformat())
-import time
-time.sleep(2)
-print(datetime.datetime.now() - now)
+cache_data = cache.load_cache()
+
+print(recommender.recommend(cache_data, [10], "POSITION_1", [10], 20))
